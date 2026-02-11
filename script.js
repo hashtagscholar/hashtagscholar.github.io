@@ -1,5 +1,4 @@
-// Hashtag Scholars site scripts
-// Footer year and contact form
+
 document.addEventListener("DOMContentLoaded", () => {
   const yearSpan = document.getElementById("year");
   if (yearSpan) {
