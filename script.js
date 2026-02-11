@@ -1,4 +1,4 @@
-
+// script.js
 document.addEventListener("DOMContentLoaded", () => {
   const yearSpan = document.getElementById("year");
   if (yearSpan) {
@@ -69,74 +69,67 @@ document.addEventListener("DOMContentLoaded", () => {
 
 document.addEventListener("DOMContentLoaded", () => {
   const visitorCountEl = document.getElementById("visitorCount");
-  if (!visitorCountEl) {
-    return;
-  }
+  if (!visitorCountEl) return;
 
-  // Count unique visitors globally using CountAPI:
-  // - One marker key per browser fingerprint
-  // - One shared total counter key
-  const COUNT_API_BASE = "https://api.counterapi.dev/v1";
+  const API_BASE = "https://api.counterapi.dev/v1";
   const NAMESPACE = "hashtagscholars";
   const TOTAL_KEY = "unique-visitors-total";
 
-  async function countApi(path) {
-    const response = await fetch(`${COUNT_API_BASE}${path}`, {
+  async function callAPI(path) {
+    const res = await fetch(`${API_BASE}${path}`, {
       method: "GET",
       cache: "no-store"
     });
-    if (!response.ok) {
-      throw new Error(`Counter API request failed: ${response.status}`);
-    }
-    return response.json();
+
+    if (!res.ok) throw new Error("API failed");
+
+    return res.json();
   }
 
-  async function getVisitorToken() {
-    const existing = localStorage.getItem("visitorToken");
-    if (existing) {
-      return existing;
-    }
-
-    const token = (window.crypto && crypto.randomUUID)
-      ? crypto.randomUUID()
-      : `v-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    localStorage.setItem("visitorToken", token);
-    return token;
-  }
-
-  async function updateUniqueVisitorCount() {
+  async function updateVisitorCount() {
     visitorCountEl.textContent = "...";
 
     try {
-      const token = await getVisitorToken();
-      const visitorKey = `seen-${token}`;
-      const visitorKeyPath = `/${encodeURIComponent(NAMESPACE)}/${encodeURIComponent(visitorKey)}`;
-      const totalKeyPath = `/${encodeURIComponent(NAMESPACE)}/${encodeURIComponent(TOTAL_KEY)}`;
+      let browserId = localStorage.getItem("browser_id");
 
-      // Increment per-visitor marker every load; first load will produce count=1.
-      const seenResponse = await countApi(`${visitorKeyPath}/up`);
-      const seenCount = Number(seenResponse?.count || 0);
-
-      if (seenCount === 1) {
-        const totalResult = await countApi(`${totalKeyPath}/up`);
-        const totalCount = Number(totalResult?.count || 1);
-        visitorCountEl.textContent = String(totalCount);
-        localStorage.setItem("cachedVisitorCount", String(totalCount));
-        return;
+      if (!browserId) {
+        browserId = crypto.randomUUID();
+        localStorage.setItem("browser_id", browserId);
       }
 
-      const totalResult = await countApi(totalKeyPath);
-      const totalCount = Number(totalResult?.count || 0);
-      visitorCountEl.textContent = String(totalCount);
-      localStorage.setItem("cachedVisitorCount", String(totalCount));
-    } catch (error) {
-      console.error("Visitor counter failed:", error);
-      visitorCountEl.textContent = localStorage.getItem("cachedVisitorCount") || "0";
+      const visitorKey = `visitor-${browserId}`;
+
+      // 1️⃣ Increment visitor-specific key
+      const visitorRes = await callAPI(
+        `/${NAMESPACE}/${visitorKey}/up`
+      );
+
+      const visitorCount = Number(visitorRes?.count || 0);
+
+      // 2️⃣ If this browser's count is 1 → first visit ever
+      if (visitorCount === 1) {
+        await callAPI(
+          `/${NAMESPACE}/${TOTAL_KEY}/up`
+        );
+      }
+
+      // 3️⃣ Get total unique visitors
+      const totalRes = await callAPI(
+        `/${NAMESPACE}/${TOTAL_KEY}`
+      );
+
+      visitorCountEl.textContent = totalRes?.count || 1;
+
+    } catch (err) {
+      console.error("Visitor counter error:", err);
+      visitorCountEl.textContent =
+        localStorage.getItem("cachedVisitorCount") || "1";
     }
   }
 
-  updateUniqueVisitorCount();
+  updateVisitorCount();
 });
+
 
 
 // Welcome overlay behavior
