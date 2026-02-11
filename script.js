@@ -75,6 +75,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const NAMESPACE = "hashtagscholars";
   const TOTAL_KEY = "unique-visitors-total";
 
+  // ✅ Set TEST_MODE = true to simulate new visitors every refresh
+  const TEST_MODE = false;
+
   async function callAPI(path) {
     const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
     if (!res.ok) throw new Error("API failed");
@@ -82,10 +85,22 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function updateVisitorCount() {
-    visitorCountEl.textContent = "...";
+    visitorCountEl.textContent = "..."; // placeholder while fetching
 
-// 1️⃣ TEST MODE: generate a new visitor ID every refresh
-let browserId = crypto.randomUUID();
+    try {
+      // 1️⃣ Determine visitor ID
+      let browserId;
+      if (TEST_MODE) {
+        // Test mode: new visitor every refresh
+        browserId = crypto.randomUUID();
+      } else {
+        // Real mode: one unique visitor per browser
+        browserId = localStorage.getItem("browser_id");
+        if (!browserId) {
+          browserId = crypto.randomUUID();
+          localStorage.setItem("browser_id", browserId);
+        }
+      }
 
       const visitorKey = `visitor-${browserId}`;
 
@@ -103,7 +118,7 @@ let browserId = crypto.randomUUID();
 
       // 5️⃣ Get total unique visitors
       const totalRes = await callAPI(`/${NAMESPACE}/${TOTAL_KEY}`);
-      visitorCountEl.textContent = totalRes?.count || 1;
+      visitorCountEl.textContent = totalRes?.count ?? "—";
 
       // 6️⃣ Cache locally
       localStorage.setItem("cachedVisitorCount", totalRes?.count || 1);
@@ -117,7 +132,6 @@ let browserId = crypto.randomUUID();
 
   updateVisitorCount();
 });
-
 
 
 // Welcome overlay behavior
