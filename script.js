@@ -75,7 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const NAMESPACE = "hashtagscholars";
   const TOTAL_KEY = "unique-visitors-total";
 
-  // ✅ Set TEST_MODE = true to simulate new visitors every refresh
+  // ✅ TEST_MODE = true → new visitor every refresh
   const TEST_MODE = false;
 
   async function callAPI(path) {
@@ -88,7 +88,11 @@ document.addEventListener("DOMContentLoaded", () => {
     visitorCountEl.textContent = "..."; // placeholder while fetching
 
     try {
-      // 1️⃣ Determine visitor ID
+      // 1️⃣ Fetch total unique visitors from the server first
+      const totalRes = await callAPI(`/${NAMESPACE}/${TOTAL_KEY}`);
+      visitorCountEl.textContent = totalRes?.count ?? "—";
+
+      // 2️⃣ Track this browser as a visitor (optional)
       let browserId;
       if (TEST_MODE) {
         // Test mode: new visitor every refresh
@@ -99,28 +103,13 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!browserId) {
           browserId = crypto.randomUUID();
           localStorage.setItem("browser_id", browserId);
+
+          const visitorKey = `visitor-${browserId}`;
+          await callAPI(`/${NAMESPACE}/${visitorKey}/up`);
         }
       }
 
-      const visitorKey = `visitor-${browserId}`;
-
-      // 2️⃣ Increment visitor-specific key
-      await callAPI(`/${NAMESPACE}/${visitorKey}/up`);
-
-      // 3️⃣ Get visitor key count
-      const visitorRes = await callAPI(`/${NAMESPACE}/${visitorKey}`);
-      const visitorCount = Number(visitorRes?.count || 0);
-
-      // 4️⃣ If first visit, increment total unique visitors
-      if (visitorCount === 1) {
-        await callAPI(`/${NAMESPACE}/${TOTAL_KEY}/up`);
-      }
-
-      // 5️⃣ Get total unique visitors
-      const totalRes = await callAPI(`/${NAMESPACE}/${TOTAL_KEY}`);
-      visitorCountEl.textContent = totalRes?.count ?? "—";
-
-      // 6️⃣ Cache locally
+      // 3️⃣ Cache the total locally as a fallback
       localStorage.setItem("cachedVisitorCount", totalRes?.count || 1);
 
     } catch (err) {
