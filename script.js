@@ -71,7 +71,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const visitorCountEl = document.getElementById("visitorCount");
   if (!visitorCountEl) return;
 
-  const API_BASE = "https://api.counterapi.dev/v1";
+  const API_BASE = "https://api.countapi.xyz";
   const NAMESPACE = "hashtagscholars";
   const TOTAL_KEY = "unique-visitors-total";
 
@@ -101,24 +101,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // 1️⃣ Increment visitor-specific key
       const visitorRes = await callAPI(
-        `/${NAMESPACE}/${visitorKey}/up`
+        `/hit/${NAMESPACE}/${visitorKey}`
       );
 
-      const visitorCount = Number(visitorRes?.count || 0);
+      const visitorResData = await callAPI(`/get/${NAMESPACE}/${visitorKey}`);
+      const visitorCount = Number(visitorResData.value || 0);
+
 
       // 2️⃣ If this browser's count is 1 → first visit ever
       if (visitorCount === 1) {
         await callAPI(
-          `/${NAMESPACE}/${TOTAL_KEY}/up`
+          `/hit/${NAMESPACE}/${TOTAL_KEY}`
         );
       }
 
       // 3️⃣ Get total unique visitors
       const totalRes = await callAPI(
-        `/${NAMESPACE}/${TOTAL_KEY}`
+        `/get/${NAMESPACE}/${TOTAL_KEY}`
       );
 
-      visitorCountEl.textContent = totalRes?.count || 1;
+      visitorCountEl.textContent = totalRes.value || 1;
 
     } catch (err) {
       console.error("Visitor counter error:", err);
