@@ -69,22 +69,85 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Visitor counter (localStorage)
-  // Check if this device already has a visitor ID
-  let visitorId = localStorage.getItem("visitorId");
-  let totalVisitors = localStorage.getItem("totalVisitors");
-
-  // First-ever visit from this device
-  if (!visitorId) {
-    visitorId = crypto.randomUUID();
-    localStorage.setItem("visitorId", visitorId);
-
-    totalVisitors = totalVisitors ? parseInt(totalVisitors) + 1 : 1;
-    localStorage.setItem("totalVisitors", totalVisitors);
+  const visitorCountEl = document.getElementById("visitorCount");
+  if (!visitorCountEl) {
+    return;
   }
 
-  document.getElementById("visitorCount").textContent =
-    localStorage.getItem("totalVisitors") || 1;
+  // Count unique visitors globally using CountAPI:
+  // - One marker key per browser fingerprint
+  // - One shared total counter key
+  const COUNT_API_BASE = "https://api.countapi.xyz";
+  const NAMESPACE = "hashtagscholars-github-io";
+  const TOTAL_KEY = "unique-visitors-total";
+
+  async function countApi(path) {
+    const response = await fetch(`${COUNT_API_BASE}${path}`, {
+      method: "GET",
+      cache: "no-store"
+    });
+    if (!response.ok) {
+      throw new Error(`CountAPI request failed: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async function hashFingerprint(input) {
+    const bytes = new TextEncoder().encode(input);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(hashBuffer))
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+  }
+
+  async function getVisitorToken() {
+    const existing = localStorage.getItem("visitorToken");
+    if (existing) {
+      return existing;
+    }
+
+    const fingerprint = [
+      navigator.userAgent || "ua",
+      navigator.language || "lang",
+      navigator.platform || "platform",
+      Intl.DateTimeFormat().resolvedOptions().timeZone || "tz",
+      `${screen.width}x${screen.height}x${screen.colorDepth}`
+    ].join("|");
+
+    const token = await hashFingerprint(fingerprint);
+    localStorage.setItem("visitorToken", token);
+    return token;
+  }
+
+  async function updateUniqueVisitorCount() {
+    visitorCountEl.textContent = "...";
+
+    const token = await getVisitorToken();
+    const visitorKey = `seen-${token}`;
+    const visitorKeyPath = `/${encodeURIComponent(NAMESPACE)}/${encodeURIComponent(visitorKey)}`;
+    const totalKeyPath = `/${encodeURIComponent(NAMESPACE)}/${encodeURIComponent(TOTAL_KEY)}`;
+
+    try {
+      const seenResponse = await countApi(`/get${visitorKeyPath}`);
+      const hasSeen = Number.isFinite(seenResponse?.value) && seenResponse.value > 0;
+
+      if (!hasSeen) {
+        // Mark this browser once, then increment global total once.
+        await countApi(`/hit${visitorKeyPath}`);
+        const totalResult = await countApi(`/hit${totalKeyPath}`);
+        visitorCountEl.textContent = String(totalResult?.value ?? 1);
+        return;
+      }
+
+      const totalResult = await countApi(`/get${totalKeyPath}`);
+      visitorCountEl.textContent = String(totalResult?.value ?? 0);
+    } catch (error) {
+      console.error("Visitor counter failed:", error);
+      visitorCountEl.textContent = "-";
+    }
+  }
+
+  updateUniqueVisitorCount();
 });
 
 
@@ -92,6 +155,9 @@ document.addEventListener("DOMContentLoaded", () => {
 document.addEventListener("DOMContentLoaded", () => {
   const overlay = document.getElementById("welcome-overlay");
   const enterBtn = document.getElementById("enter-site");
+  if (!overlay || !enterBtn) {
+    return;
+  }
   
   // Always show the welcome overlay on page load if:
   // 1. It's a reload
@@ -156,16 +222,22 @@ function showComingSoonModal(text) {
 
 function closeComingSoonModal() {
   const modal = document.getElementById("comingSoonModal");
+  if (!modal) {
+    return;
+  }
   modal.classList.remove("active");
   document.body.style.overflow = ""; // Re-enable background scrolling
 }
 
 // Close modal when clicking outside
-document.getElementById("comingSoonModal").addEventListener("click", (e) => {
-  if (e.target.id === "comingSoonModal") {
-    closeComingSoonModal();
-  }
-});
+const comingSoonModal = document.getElementById("comingSoonModal");
+if (comingSoonModal) {
+  comingSoonModal.addEventListener("click", (e) => {
+    if (e.target.id === "comingSoonModal") {
+      closeComingSoonModal();
+    }
+  });
+}
 
 // Close modal with Escape key
 document.addEventListener("keydown", (e) => {
